@@ -1,0 +1,101 @@
+﻿"Declaração das variáveis
+DATA: lo_grid_9000      TYPE REF TO cl_gui_alv_grid, 
+      lo_container_9000 TYPE REF TO cl_gui_custom_container,
+	  lt_fieldcat       TYPE lvc_t_fcat,
+      ls_layout         TYPE lvc_s_layo,
+      ls_variant        TYPE disvariant,
+	  lv_okcode_9000    TYPE sy-ucomm.
+	  
+	  
+"No PBO atribuir os valores:
+ls_layout-zebra      = 'X'.
+ls_layout-cwidth_opt = 'X'.
+ls_layout-no_toolbar = 'X'. "Remove os botões do ALV sem a necessidade de declararmos a tabela e excluir os botoes.
+ls_layout-no_headers = 'X'. "Remove o cabeçalho do ALV com o nome das colunas.
+ls_variant-report    = sy-repid.
+
+PERFORM f_build_fieldcat USING:
+        ''  ''  ''  ''  ''  CHANGING lt_fieldcat[].
+OR
+
+CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+  EXPORTING
+    i_structure_name       = 'ESTRUTURA'
+  CHANGING
+    ct_fieldcat            = lt_fieldcat[]
+  EXCEPTIONS
+    inconsistent_interface = 1
+    program_error          = 2
+    OTHERS                 = 3.
+
+IF lo_grid_9000 IS INITIAL.
+  "Quando não tivermos o container criado na tela, devemos instanciar o GRID dessa forma:
+  CREATE OBJECT lo_grid_9000
+	EXPORTING
+	  i_parent = cl_gui_custom_container=>default_screen.
+	  
+  "Quando tivermos o container criado na tela, devemos instanciar o GRID dessa forma:
+  CREATE OBJECT lo_container_9000
+	EXPORTING
+	  container_name = 'NOME_CONTAINER_DA_TELA'.
+	  
+  CREATE OBJECT lo_grid_9000
+	EXPORTING
+	  i_parent = lo_container_9000.
+
+  OU
+
+  lo_container_9000 = NEW cl_gui_custom_container( container_name = 'CONTAINER' ).
+  lo_grid_9000      = NEW cl_gui_alv_grid( i_parent = lo_container_9000 ).
+
+  lo_grid_9000->set_table_for_first_display(
+    EXPORTING
+      is_variant      = ls_variant
+      is_layout       = ls_layout
+      i_save          = 'A'
+    CHANGING
+      it_fieldcatalog = lt_fieldcat[]
+      it_outtab       = lt_tabela[]
+  ).
+ELSE.
+  "Atualiza sem marcar a linha do grid, caso seja editável.
+  lo_grid_9000->refresh_table_display( ).
+  
+  "Marca a linha e coluna para o refresh após o insert, não colocar o cursor na primeira linha.
+  DATA: ls_stable TYPE lvc_s_stbl.  
+  
+  ls_stable-row = 'X'.
+  ls_stable-col = 'X'
+  
+  lo_grid_9000->refresh_table_display(
+    EXPORTING
+      is_stable = ls_stable
+  ).
+ENDIF.
+	 
+
+*&---------------------------------------------------------------------*
+*&      Form F_BUILD_FIELDCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_build_fieldcat USING value(p_fieldname) TYPE c
+                            value(p_field)     TYPE c
+                            value(p_table)     TYPE c
+                            value(p_coltext)   TYPE c
+                            value(p_icon)      TYPE c
+                            value(p_hotspot)   TYPE c
+                            value(p_outputlen) TYPE i
+                         CHANGING t_fieldcat   TYPE lvc_t_fcat.
+
+  DATA: ls_fieldcat LIKE LINE OF t_fieldcat[].
+  ls_fieldcat-fieldname = p_fieldname.
+  ls_fieldcat-ref_field = p_field.
+  ls_fieldcat-ref_table = p_table.
+  ls_fieldcat-coltext   = p_coltext.
+  ls_fieldcat-icon      = p_icon.
+  ls_fieldcat-hotspot   = p_hotspot.
+  ls_fieldcat-outputlen = p_outputlen.
+  APPEND ls_fieldcat TO t_fieldcat[].
+
+ENDFORM.                    "f_build_fieldcat
